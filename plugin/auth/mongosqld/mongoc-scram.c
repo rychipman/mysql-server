@@ -52,7 +52,7 @@ _mongoc_scram_set_pass (mongoc_scram_t *scram, const char *pass)
       free (scram->pass);
    }
 
-   scram->pass = pass ? bson_strdup (pass) : NULL;
+   scram->pass = pass ? strdup (pass) : NULL;
 }
 
 
@@ -62,7 +62,7 @@ _mongoc_scram_set_user (mongoc_scram_t *scram, const char *user)
    
 
    free (scram->user);
-   scram->user = user ? bson_strdup (user) : NULL;
+   scram->user = user ? strdup (user) : NULL;
 }
 
 
