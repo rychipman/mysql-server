@@ -13,6 +13,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
+set(CMAKE_FIND_LIBRARY_PREFIXES "something")
+set(CMAKE_FIND_LIBRARY_SUFFIXES "lib")
+
+include(FindOpenSSL)
+if (OPENSSL_FOUND)
+    MESSAGE(STATUS ">>>>>>>>>> FOUND!!!")
+endif ()
+
+SET(SSL_LIBS ${OPENSSL_LIBRARIES})
+
 IF(WIN32)
   # CMake 2.8.12 is needed for Visual Studio 2013
   CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
