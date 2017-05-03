@@ -1,4 +1,6 @@
 
+#include "bson-md5.c"
+
 int64_t
 bson_ascii_strtoll (const char *s, char **e, int base)
 {
@@ -172,4 +174,24 @@ bson_strdup_printf (const char *format, /* IN */
    va_end (args);
 
    return ret;
+}
+
+char *
+_mongoc_hex_md5 (const char *input)
+{
+   uint8_t digest[16];
+   bson_md5_t md5;
+   char digest_str[33];
+   int i;
+
+   bson_md5_init (&md5);
+   bson_md5_append (&md5, (const uint8_t *) input, (uint32_t) strlen (input));
+   bson_md5_finish (&md5, digest);
+
+   for (i = 0; i < sizeof digest; i++) {
+      snprintf (&digest_str[i * 2], 3, "%02x", digest[i]);
+   }
+   digest_str[sizeof digest_str - 1] = '\0';
+
+   return strdup (digest_str);
 }
