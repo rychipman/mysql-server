@@ -46,7 +46,8 @@ _mongoc_scram_set_pass (mongoc_scram_t *scram, const char *pass)
    
 
    if (scram->pass) {
-      bson_zero_free (scram->pass, strlen (scram->pass));
+      memset (scram->pass, 0, strlen (scram->pass));
+      free (scram->pass);
    }
 
    scram->pass = pass ? bson_strdup (pass) : NULL;
@@ -82,7 +83,8 @@ _mongoc_scram_destroy (mongoc_scram_t *scram)
    free (scram->user);
 
    if (scram->pass) {
-      bson_zero_free (scram->pass, strlen (scram->pass));
+      memset (scram->pass, 0, strlen (scram->pass));
+      free (scram->pass);
    }
 
    free (scram->auth_message);
@@ -401,7 +403,8 @@ _mongoc_scram_step2 (mongoc_scram_t *scram,
    /* all our passwords go through md5 thanks to MONGODB-CR */
    tmp = bson_strdup_printf ("%s:mongo:%s", scram->user, scram->pass);
    hashed_password = _mongoc_hex_md5 (tmp);
-   bson_zero_free (tmp, strlen (tmp));
+   memset (tmp, 0, strlen (tmp));
+   free (tmp);
 
    /* we need all of the incoming message for the final client proof */
    if (!_mongoc_scram_buf_write ((char *) inbuf,
@@ -608,7 +611,8 @@ CLEANUP:
    free (val_i);
 
    if (hashed_password) {
-      bson_zero_free (hashed_password, strlen (hashed_password));
+      memset (hashed_password, 0, strlen (hashed_password));
+      free (hashed_password);
    }
 
    return rval;
