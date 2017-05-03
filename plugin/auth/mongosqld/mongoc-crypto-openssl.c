@@ -41,14 +41,14 @@ mongoc_crypto_openssl_hmac_sha1 (mongoc_crypto_t *crypto,
 EVP_MD_CTX *
 EVP_MD_CTX_new (void)
 {
-   return bson_malloc0 (sizeof (EVP_MD_CTX));
+   return calloc (1, sizeof (EVP_MD_CTX));
 }
 
 void
 EVP_MD_CTX_free (EVP_MD_CTX *ctx)
 {
    EVP_MD_CTX_cleanup (ctx);
-   bson_free (ctx);
+   free (ctx);
 }
 #endif
 

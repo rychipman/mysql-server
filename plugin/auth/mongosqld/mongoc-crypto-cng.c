@@ -67,7 +67,7 @@ _mongoc_crypto_cng_hmac_or_hash (BCRYPT_ALG_HANDLE algorithm,
       return FALSE;
    }
 
-   hash_object_buffer = bson_malloc (hash_object_length);
+   hash_object_buffer = malloc (hash_object_length);
 
    status = BCryptCreateHash (algorithm,
                               &hash,
@@ -101,7 +101,7 @@ cleanup:
       (void) BCryptDestroyHash (hash);
    }
 
-   bson_free (hash_object_buffer);
+   free (hash_object_buffer);
    return retval;
 }
 

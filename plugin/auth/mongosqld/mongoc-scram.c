@@ -58,7 +58,7 @@ _mongoc_scram_set_user (mongoc_scram_t *scram, const char *user)
 {
    
 
-   bson_free (scram->user);
+   free (scram->user);
    scram->user = user ? bson_strdup (user) : NULL;
 }
 
@@ -79,13 +79,13 @@ _mongoc_scram_destroy (mongoc_scram_t *scram)
 {
    
 
-   bson_free (scram->user);
+   free (scram->user);
 
    if (scram->pass) {
       bson_zero_free (scram->pass, strlen (scram->pass));
    }
 
-   bson_free (scram->auth_message);
+   free (scram->auth_message);
 }
 
 
@@ -134,7 +134,7 @@ _mongoc_scram_start (mongoc_scram_t *scram,
    
 
    /* auth message is as big as the outbuf just because */
-   scram->auth_message = (uint8_t *) bson_malloc (outbufmax);
+   scram->auth_message = (uint8_t *) malloc (outbufmax);
    scram->auth_messagemax = outbufmax;
 
    /* the server uses a 24 byte random nonce.  so we do as well */
@@ -466,7 +466,7 @@ _mongoc_scram_step2 (mongoc_scram_t *scram,
          *current_val_len = (uint32_t) ((inbuf + inbuflen) - ptr);
       }
 
-      *current_val = (uint8_t *) bson_malloc (*current_val_len + 1);
+      *current_val = (uint8_t *) malloc (*current_val_len + 1);
       memcpy (*current_val, ptr, *current_val_len);
       (*current_val)[*current_val_len] = '\0';
 
@@ -603,9 +603,9 @@ FAIL:
    rval = FALSE;
 
 CLEANUP:
-   bson_free (val_r);
-   bson_free (val_s);
-   bson_free (val_i);
+   free (val_r);
+   free (val_s);
+   free (val_i);
 
    if (hashed_password) {
       bson_zero_free (hashed_password, strlen (hashed_password));
@@ -723,7 +723,7 @@ _mongoc_scram_step3 (mongoc_scram_t *scram,
          *current_val_len = (uint32_t) ((inbuf + inbuflen) - ptr);
       }
 
-      *current_val = (uint8_t *) bson_malloc (*current_val_len + 1);
+      *current_val = (uint8_t *) malloc (*current_val_len + 1);
       memcpy (*current_val, ptr, *current_val_len);
       (*current_val)[*current_val_len] = '\0';
 
@@ -769,8 +769,8 @@ FAIL:
    rval = FALSE;
 
 CLEANUP:
-   bson_free (val_e);
-   bson_free (val_v);
+   free (val_e);
+   free (val_v);
 
    return rval;
 }
