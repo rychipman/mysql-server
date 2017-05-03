@@ -128,3 +128,48 @@ bson_set_error (bson_error_t *error, /* OUT */
       error->message[sizeof error->message - 1] = '\0';
    }
 }
+
+char *
+bson_strdupv_printf (const char *format, /* IN */
+                     va_list args)       /* IN */
+{
+   va_list my_args;
+   char *buf;
+   int len = 32;
+   int n;
+
+   buf = calloc (1, len);
+
+   while (1) {
+      va_copy (my_args, args);
+      n = vsnprintf (buf, len, format, my_args);
+      va_end (my_args);
+
+      if (n > -1 && n < len) {
+         return buf;
+      }
+
+      if (n > -1) {
+         len = n + 1;
+      } else {
+         len *= 2;
+      }
+
+      buf = realloc (buf, len);
+   }
+}
+
+
+char *
+bson_strdup_printf (const char *format, /* IN */
+                    ...)                /* IN */
+{
+   va_list args;
+   char *ret;
+
+   va_start (args, format);
+   ret = bson_strdupv_printf (format, args);
+   va_end (args);
+
+   return ret;
+}
