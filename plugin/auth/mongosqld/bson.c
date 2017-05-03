@@ -108,4 +108,23 @@ bson_ascii_strtoll (const char *s, char **e, int base)
    return number;
 }
 
+void
+bson_set_error (bson_error_t *error, /* OUT */
+                uint32_t domain,     /* IN */
+                uint32_t code,       /* IN */
+                const char *format,  /* IN */
+                ...)                 /* IN */
+{
+   va_list args;
 
+   if (error) {
+      error->domain = domain;
+      error->code = code;
+
+      va_start (args, format);
+      vsnprintf (error->message, sizeof error->message, format, args);
+      va_end (args);
+
+      error->message[sizeof error->message - 1] = '\0';
+   }
+}
