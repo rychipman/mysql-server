@@ -17,6 +17,8 @@
 
 #include <string.h>
 
+#include "bson.c"
+
 #include "mongoc-rand.c"
 #include "mongoc-scram.h"
 #include "mongoc-crypto.c"
