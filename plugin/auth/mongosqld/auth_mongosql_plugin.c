@@ -42,11 +42,7 @@
 static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   mongoc_scram_t scram;
-  const char *tmpstr;
   const char *auth_source;
-  int conv_id = 0;
-  bson_error_t error;
-
   unsigned char *pkt;
   int pkt_len;
 
@@ -56,8 +52,10 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   // TODO: read plugin name?
 
   /* read auth-data */
-  if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
+  pkt_len = vio->read_packet(vio, &pkt)
+  if (pkt_len < 0) {
     return CR_ERROR;
+  }
   // TODO: parse the contents of this message
   int8_t major_version = *(int8_t*)pkt;
   int8_t minor_version = *(int8_t*)(pkt+sizeof(pkt));
@@ -66,13 +64,16 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   fprintf(stderr, "    minor_version: %d\n", minor_version);
 
   /* write 0 bytes */
-  if (vio->write_packet(vio, (const unsigned char *) "", 1))
+  if (vio->write_packet(vio, (const unsigned char *) "", 1)) {
     return CR_ERROR;
+  }
   fprintf(stderr, "sent empty handshake response\n");
 
   /* first auth-more-data */
-  if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
+  pkt_len= vio->read_packet(vio, &pkt)
+  if (pkt_len < 0) {
     return CR_ERROR;
+  }
   mechanism = pkt;
   memcpy(&num_conversations, pkt+strlen((const char *)mechanism)+1, 4);
   fprintf(stderr, "received first auth-more-data (%d bytes)\n", pkt_len);
@@ -98,20 +99,36 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
    _mongoc_scram_set_user (&scram, info->user_name);
 
    uint32_t buflen = 0;
-   uint8_t buf[4096] = {0};
+   unsigned char buf[4096] = {0};
    for (;;) {
-      if (!_mongoc_scram_step (
-             &scram, buf, buflen, buf, sizeof buf, &buflen, &error)) {
+      bson_error_t error;
+      if (!_mongoc_scram_step (&scram, buf, buflen, buf, sizeof buf, &buflen, &error)) {
          goto failure;
       }
 
-      if (vio->write_packet(vio, (const unsigned char *) buf, buflen)) {
+      unsigned char *char_buf = (unsigned char *) buf;
+      int32_t payload_len = strlen(char_buf);
+      int32_t data_len = payload_len + 5;
+      unsigned char *data = malloc(data_len);
+      *data = (const char *)"0";
+      memcpy(data+8, &payload_len, 32);
+      memcpy(data+40, char_buf, strlen(char_buf));
+
+      if (vio->write_packet(vio, data, data_len)) {
           return CR_ERROR;
       }
+      fprintf(stderr, "sent scram step %d\n", scram.step);
+      fprintf(stderr, "    length: %d\n", data_len);
+      fprintf(stderr, "    payload: '%s'\n", data+40);
 
       /* read server reply */
-      if ((buflen= vio->read_packet(vio, &buf)) < 0)
+      buflen = vio->read_packet(vio, &buf)
+      if (buflen < 0) {
         return CR_ERROR;
+      }
+      fprintf(stderr, "received scram step %d response\n", scram.step);
+      fprintf(stderr, "    length: %d\n", buflen);
+      fprintf(stderr, "    content: '%s'\n", buf);
    }
 
    fprintf(stderr, "%s", "SCRAM: authenticated");
