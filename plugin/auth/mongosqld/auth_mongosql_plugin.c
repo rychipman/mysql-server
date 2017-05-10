@@ -39,13 +39,11 @@
     @retval CR_ERROR An error occurred.
     @retval CR_OK Authentication succeeded.
 */
-static int mongosql_plugin_client(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
+static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
-  uint32_t buflen = 0;
   mongoc_scram_t scram;
   const char *tmpstr;
   const char *auth_source;
-  uint8_t buf[4096] = {0};
   int conv_id = 0;
   bson_error_t error;
 
@@ -55,25 +53,33 @@ static int mongosql_plugin_client(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO 
   unsigned char *mechanism;
   int32_t num_conversations;
 
-  /* write 0 bytes */
-  if (vio->write_packet(vio, (const unsigned char *) {0}, 1))
-    return CR_ERROR;
+  // TODO: read plugin name?
 
-
-  /* read server reply */
+  /* read auth-data */
   if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
     return CR_ERROR;
+  // TODO: parse the contents of this message
+  int8_t major_version = *(int8_t*)pkt;
+  int8_t minor_version = *(int8_t*)(pkt+sizeof(pkt));
+  fprintf(stderr, "received auth-data from server (%d bytes)\n", pkt_len);
+  fprintf(stderr, "    major_version: %d\n", major_version);
+  fprintf(stderr, "    minor_version: %d\n", minor_version);
 
-  /*
-    Copy the mechanism and iteration count
-  */
+  /* write 0 bytes */
+  if (vio->write_packet(vio, (const unsigned char *) "", 1))
+    return CR_ERROR;
+  fprintf(stderr, "sent empty handshake response\n");
+
+  /* first auth-more-data */
+  if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
+    return CR_ERROR;
   mechanism = pkt;
   memcpy(&num_conversations, pkt+strlen((const char *)mechanism)+1, 4);
-
-  fprintf(stderr, "MECHANISM IS '%s'", mechanism);
+  fprintf(stderr, "received first auth-more-data (%d bytes)\n", pkt_len);
+  fprintf(stderr, "    mechanism: '%s'\n", mechanism);
+  fprintf(stderr, "    num_conversations: %d\n", num_conversations);
 
    /*
-
    if (!(auth_source = mongoc_uri_get_auth_source (cluster->uri)) ||
        (*auth_source == '\0')) {
       auth_source = "admin";
@@ -91,17 +97,21 @@ static int mongosql_plugin_client(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO 
    _mongoc_scram_set_pass (&scram, info->auth_string);
    _mongoc_scram_set_user (&scram, info->user_name);
 
-
+   uint32_t buflen = 0;
+   uint8_t buf[4096] = {0};
    for (;;) {
       if (!_mongoc_scram_step (
              &scram, buf, buflen, buf, sizeof buf, &buflen, &error)) {
          goto failure;
       }
 
-      if (vio->write_packet(vio, (const unsigned char *) buf, buflen))
+      if (vio->write_packet(vio, (const unsigned char *) buf, buflen)) {
           return CR_ERROR;
+      }
 
-      fprintf(stderr, "SCRAM: authenticating (step %d)", scram.step);
+      /* read server reply */
+      if ((buflen= vio->read_packet(vio, &buf)) < 0)
+        return CR_ERROR;
    }
 
    fprintf(stderr, "%s", "SCRAM: authenticated");
@@ -114,7 +124,7 @@ failure:
 
 
 mysql_declare_client_plugin(AUTHENTICATION)
-  "mongosql_plugin_client",
+  "mongosql_auth",
   "MongoDB",
   "MongoDB MySQL Authentication Plugin",
   {0,1,0},
@@ -123,5 +133,5 @@ mysql_declare_client_plugin(AUTHENTICATION)
   NULL,
   NULL,
   NULL,
-  mongosql_plugin_client
+  mongosql_auth
 mysql_end_client_plugin;

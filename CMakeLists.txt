@@ -766,5 +766,5 @@ IF(NOT BUILD_IS_SINGLE_CONFIG)
     "CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 ENDIF()
 
-MYSQL_ADD_PLUGIN(mongosql_plugin_client ../plugin/auth/mongosqld/auth_mongosql_plugin.c 
+MYSQL_ADD_PLUGIN(mongosql_auth ../plugin/auth/mongosqld/auth_mongosql_plugin.c
   MODULE_ONLY TEST_ONLY)
