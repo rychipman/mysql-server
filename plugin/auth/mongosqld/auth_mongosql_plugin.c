@@ -41,80 +41,76 @@
 */
 static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
-  mongoc_scram_t scram;
-  const char *auth_source;
-  unsigned char *pkt;
-  int pkt_len;
-
-  unsigned char *mechanism;
-  int32_t num_conversations;
 
   // TODO: read plugin name?
 
+  unsigned char *pkt;
+  int pkt_len;
+
   /* read auth-data */
-  pkt_len = vio->read_packet(vio, &pkt)
+  pkt_len = vio->read_packet(vio, &pkt);
   if (pkt_len < 0) {
+    fprintf(stderr, "ERROR: failed while reading auth-data from initial handshake\n");
     return CR_ERROR;
   }
-  // TODO: parse the contents of this message
-  int8_t major_version = *(int8_t*)pkt;
-  int8_t minor_version = *(int8_t*)(pkt+sizeof(pkt));
+
+  /* parse the contents of auth-data */
+  uint8_t major_version;
+  uint8_t minor_version;
+  memcpy(&major_version, pkt, 1);
+  memcpy(&minor_version, pkt+1, 1);
   fprintf(stderr, "received auth-data from server (%d bytes)\n", pkt_len);
   fprintf(stderr, "    major_version: %d\n", major_version);
   fprintf(stderr, "    minor_version: %d\n", minor_version);
 
   /* write 0 bytes */
   if (vio->write_packet(vio, (const unsigned char *) "", 1)) {
+    fprintf(stderr, "ERROR: failed while writing zero-byte response\n");
     return CR_ERROR;
   }
   fprintf(stderr, "sent empty handshake response\n");
 
   /* first auth-more-data */
-  pkt_len= vio->read_packet(vio, &pkt)
+  pkt_len = vio->read_packet(vio, &pkt);
   if (pkt_len < 0) {
+    fprintf(stderr, "ERROR: failed while reading first auth-more-data\n");
     return CR_ERROR;
   }
+
+  unsigned char *mechanism;
+  int32_t num_conversations;
   mechanism = pkt;
   memcpy(&num_conversations, pkt+strlen((const char *)mechanism)+1, 4);
   fprintf(stderr, "received first auth-more-data (%d bytes)\n", pkt_len);
   fprintf(stderr, "    mechanism: '%s'\n", mechanism);
   fprintf(stderr, "    num_conversations: %d\n", num_conversations);
 
-   /*
-   if (!(auth_source = mongoc_uri_get_auth_source (cluster->uri)) ||
-       (*auth_source == '\0')) {
-      auth_source = "admin";
-   }
-   */
-   auth_source = "admin";
 
+   mongoc_scram_t scram;
    _mongoc_scram_init (&scram);
-
-   /*
-   _mongoc_scram_set_pass (&scram, mongoc_uri_get_password (cluster->uri));
-   _mongoc_scram_set_user (&scram, mongoc_uri_get_username (cluster->uri));
-   */
-
    _mongoc_scram_set_pass (&scram, info->auth_string);
    _mongoc_scram_set_user (&scram, info->user_name);
 
-   uint32_t buflen = 0;
+   uint32_t buf_len = 0;
    unsigned char buf[4096] = {0};
+   my_bool success;
    for (;;) {
       bson_error_t error;
-      if (!_mongoc_scram_step (&scram, buf, buflen, buf, sizeof buf, &buflen, &error)) {
+      success = _mongoc_scram_step (&scram, buf, buf_len, buf, sizeof buf, &buf_len, &error);
+      if (!success) {
          goto failure;
       }
 
-      unsigned char *char_buf = (unsigned char *) buf;
-      int32_t payload_len = strlen(char_buf);
+      int32_t payload_len = buf_len;
       int32_t data_len = payload_len + 5;
+      uint8_t complete = 0;
       unsigned char *data = malloc(data_len);
-      *data = (const char *)"0";
-      memcpy(data+8, &payload_len, 32);
-      memcpy(data+40, char_buf, strlen(char_buf));
+      memcpy(data, &complete, 1);
+      memcpy(data+8, &payload_len, 4);
+      memcpy(data+40, buf, payload_len);
 
       if (vio->write_packet(vio, data, data_len)) {
+          fprintf(stderr, "ERROR: failed while writing scram step %d\n", scram.step);
           return CR_ERROR;
       }
       fprintf(stderr, "sent scram step %d\n", scram.step);
@@ -122,13 +118,16 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
       fprintf(stderr, "    payload: '%s'\n", data+40);
 
       /* read server reply */
-      buflen = vio->read_packet(vio, &buf)
-      if (buflen < 0) {
+      unsigned char *pkt;
+      int pkt_len;
+      pkt_len = vio->read_packet(vio, &pkt);
+      if (pkt_len < 0) {
+        fprintf(stderr, "ERROR: failed while reading server reply to scram step %d\n", scram.step);
         return CR_ERROR;
       }
       fprintf(stderr, "received scram step %d response\n", scram.step);
-      fprintf(stderr, "    length: %d\n", buflen);
-      fprintf(stderr, "    content: '%s'\n", buf);
+      fprintf(stderr, "    length: %d\n", pkt_len);
+      fprintf(stderr, "    content: '%s'\n", pkt);
    }
 
    fprintf(stderr, "%s", "SCRAM: authenticated");
