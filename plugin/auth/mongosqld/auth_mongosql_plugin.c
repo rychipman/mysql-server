@@ -77,7 +77,7 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   }
 
   unsigned char *mechanism;
-  int32_t num_conversations;
+  uint32_t num_conversations;
   mechanism = pkt;
   memcpy(&num_conversations, pkt+strlen((const char *)mechanism)+1, 4);
   fprintf(stderr, "received first auth-more-data (%d bytes)\n", pkt_len);
@@ -105,8 +105,8 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
       uint8_t complete = 0;
       unsigned char *data = malloc(data_len);
       memcpy(data, &complete, 1);
-      memcpy(data+8, &payload_len, 4);
-      memcpy(data+40, buf, payload_len);
+      memcpy(data+1, &payload_len, 4);
+      memcpy(data+5, buf, payload_len);
 
       if (vio->write_packet(vio, data, data_len)) {
           fprintf(stderr, "ERROR: failed while writing scram step %d\n", scram.step);
@@ -116,7 +116,7 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
       fprintf(stderr, "    length: %d\n", data_len);
       fprintf(stderr, "    complete: %d\n", complete);
       fprintf(stderr, "    payload_len: %d\n", payload_len);
-      fprintf(stderr, "    payload: '%s'\n", data+40);
+      fprintf(stderr, "    payload: '%s'\n", data+5);
 
       /* read server reply */
       unsigned char *pkt;
