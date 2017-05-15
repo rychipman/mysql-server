@@ -101,12 +101,14 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
       }
 
       uint32_t payload_len = buf_len;
-      uint32_t data_len = payload_len + 5;
+      uint32_t conversation_len = payload_len + 5;
+      uint32_t data_len = conversation_len * num_conversations;
       uint8_t complete = 0;
       unsigned char *data = malloc(data_len);
       memcpy(data, &complete, 1);
       memcpy(data+1, &payload_len, 4);
       memcpy(data+5, buf, payload_len);
+      memcpy(data+conversation_len, data, conversation_len);
 
       if (vio->write_packet(vio, data, data_len)) {
           fprintf(stderr, "ERROR: failed while writing scram step %d\n", scram.step);
