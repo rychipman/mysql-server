@@ -193,6 +193,7 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
             uint32_t payload_len;
             memcpy(&payload_len, pkt, 4);
             pkt += 4;
+            buf_lens[i] = payload_len;
             fprintf(stderr, "        payload_len: %d\n", payload_len);
 
             memcpy(bufs[i], pkt, payload_len);

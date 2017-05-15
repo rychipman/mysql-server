@@ -425,6 +425,8 @@ _mongoc_scram_step2 (mongoc_scram_t *scram,
       goto BUFFER_AUTH;
    }
 
+   fprintf(stderr, "step2 inbuf: '%s' (len %d)\n", inbuf, inbuflen);
+
    for (ptr = inbuf; ptr < inbuf + inbuflen;) {
       switch (*ptr) {
       case 'r':
