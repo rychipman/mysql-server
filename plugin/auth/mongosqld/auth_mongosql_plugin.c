@@ -94,24 +94,45 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
    fprintf(stderr, "    user: %s\n", mysql->user);
    fprintf(stderr, "    pass: %s\n", mysql->passwd);
 
-   uint32_t buf_len = 0;
-   unsigned char buf[4096] = {0};
-   my_bool success;
-   for (;;) {
-      bson_error_t error;
-      success = _mongoc_scram_step (&scram, buf, buf_len, buf, sizeof buf, &buf_len, &error);
-      if (!success) {
-         goto failure;
-      }
+   unsigned char scram_outbuf[4096] = {0};
+   uint32_t scram_outbuf_len = 0;
 
-      uint32_t payload_len = buf_len;
+   unsigned char *scram_inbuf = scram_outbuf;
+   uint32_t scram_inbuf_len = 0;
+
+   my_bool success;
+
+   for (;;) {
+
+       for(unsigned int conv = 0; conv < num_conversations; conv++) {
+
+          bson_error_t error;
+          success = _mongoc_scram_step (
+                  &scram,
+                  scram_inbuf,
+                  scram_inbuf_len,
+                  scram_outbuf,
+                  sizeof scram_outbuf,
+                  &scram_outbuf_len,
+                  &error
+          );
+          if (!success) {
+             goto failure;
+          }
+
+           scram_inbuf += scram_inbuf_len;
+           memcpy(&scram_inbuf_len, scram_inbuf, 4);
+           scram_inbuf += 4;
+       }
+
+      uint32_t payload_len = scram_outbuf_len;
       uint32_t conversation_len = payload_len + 5;
       uint32_t data_len = conversation_len * num_conversations;
       uint8_t complete = 0;
       unsigned char *data = malloc(data_len);
       memcpy(data, &complete, 1);
       memcpy(data+1, &payload_len, 4);
-      memcpy(data+5, buf, payload_len);
+      memcpy(data+5, scram_outbuf, payload_len);
       memcpy(data+conversation_len, data, conversation_len);
 
       if (vio->write_packet(vio, data, data_len)) {
@@ -121,7 +142,7 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
 
       fprintf(stderr, "sent scram step %d\n", scram.step);
       unsigned char *conversation = data;
-      for(int i=0;i<num_conversations;i++) {
+      for(unsigned int i=0; i<num_conversations; i++) {
           fprintf(stderr, "    conversation: %d\n", i);
           fprintf(stderr, "        length: %d\n", conversation_len);
           fprintf(stderr, "        complete: %d\n", complete);
@@ -141,6 +162,9 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
       fprintf(stderr, "received scram step %d response\n", scram.step);
       fprintf(stderr, "    length: %d\n", pkt_len);
       fprintf(stderr, "    content: '%s'\n", pkt);
+
+       scram_inbuf = pkt + 4;
+       memcpy(&scram_inbuf_len, pkt, 4);
    }
 
    fprintf(stderr, "%s", "SCRAM: authenticated");
