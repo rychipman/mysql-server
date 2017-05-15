@@ -44,10 +44,9 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   // TODO: read plugin name?
 
+  /* read auth-data */
   unsigned char *pkt;
   int pkt_len;
-
-  /* read auth-data */
   pkt_len = vio->read_packet(vio, &pkt);
   if (pkt_len < 0) {
     fprintf(stderr, "ERROR: failed while reading auth-data from initial handshake\n");
@@ -101,8 +100,8 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
          goto failure;
       }
 
-      int32_t payload_len = buf_len;
-      int32_t data_len = payload_len + 5;
+      uint32_t payload_len = buf_len;
+      uint32_t data_len = payload_len + 5;
       uint8_t complete = 0;
       unsigned char *data = malloc(data_len);
       memcpy(data, &complete, 1);
@@ -115,6 +114,8 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
       }
       fprintf(stderr, "sent scram step %d\n", scram.step);
       fprintf(stderr, "    length: %d\n", data_len);
+      fprintf(stderr, "    complete: %d\n", complete);
+      fprintf(stderr, "    payload_len: %d\n", payload_len);
       fprintf(stderr, "    payload: '%s'\n", data+40);
 
       /* read server reply */
