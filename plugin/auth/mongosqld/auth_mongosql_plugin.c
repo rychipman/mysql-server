@@ -42,8 +42,6 @@
 static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
 {
 
-    // TODO: read plugin name?
-
     /* read auth-data */
     unsigned char *pkt;
     int pkt_len;
@@ -84,70 +82,98 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
     fprintf(stderr, "    mechanism: '%s'\n", mechanism);
     fprintf(stderr, "    num_conversations: %d\n", num_conversations);
 
+    /* initialize scram conversations */
+    mongoc_scram_t conversations[num_conversations];
+    for (unsigned int i=0; i<num_conversations; i++) {
+        mongoc_scram_t scram;
+        _mongoc_scram_init (&scram);
+        _mongoc_scram_set_user (&scram, mysql->user);
+        _mongoc_scram_set_pass (&scram, mysql->passwd);
+        conversations[i] = scram;
+    }
 
-    mongoc_scram_t scram;
-    _mongoc_scram_init (&scram);
-    _mongoc_scram_set_pass (&scram, mysql->passwd);
-    _mongoc_scram_set_user (&scram, mysql->user);
+    fprintf(stderr, "initialized scram conversations\n");
+    for (unsigned int i=0; i<num_conversations; i++) {
+        fprintf(stderr, "    conversation: %d\n", i);
+        fprintf(stderr, "        user: %s\n", conversations[i].user);
+        fprintf(stderr, "        pass: %s\n", conversations[i].pass);
+    }
 
-    fprintf(stderr, "initialized scram\n");
-    fprintf(stderr, "    user: %s\n", mysql->user);
-    fprintf(stderr, "    pass: %s\n", mysql->passwd);
+    /* initialize scram buffers */
+    uint8_t *bufs[num_conversations];
+    uint32_t buf_lens[num_conversations];
+    for (unsigned int i=0; i<num_conversations; i++) {
+        bufs[i] = malloc(4096);
+        buf_lens[i] = 0;
+    }
 
-    unsigned char scram_outbuf[4096] = {0};
-    uint32_t scram_outbuf_len = 0;
+    fprintf(stderr, "initialized scram conversation buffers\n");
 
-    unsigned char *scram_inbuf = scram_outbuf;
-    uint32_t scram_inbuf_len = 0;
+    while (1) {
 
-    my_bool success;
-
-    for (;;) {
-
-        for(unsigned int conv = 0; conv < num_conversations; conv++) {
+        /*
+         * for each scram conversation, process scram_inbuf
+         * and populate scram_outbuf
+         */
+        for(unsigned int i=0; i<num_conversations; i++) {
             bson_error_t error;
+            my_bool success;
+
+
+            fprintf(stderr, "step %d payload: '%s'\n", conversations[i].step, bufs[i]);
             success = _mongoc_scram_step (
-                &scram,
-                scram_inbuf,
-                scram_inbuf_len,
-                scram_outbuf,
-                sizeof scram_outbuf,
-                &scram_outbuf_len,
+                &conversations[i],
+                bufs[i],
+                buf_lens[i],
+                bufs[i],
+                (uint32_t)(4096 * sizeof(uint8_t)),
+                &buf_lens[i],
                 &error
             );
+
             if (!success) {
+                fprintf(stderr, "ERROR: failed while executing scram step %d for conversation %d\n", conversations[i].step, i);
+                fprintf(stderr, "    message: '%s'\n", error.message);
                 goto failure;
             }
-
-            scram_inbuf += scram_inbuf_len;
-            memcpy(&scram_inbuf_len, scram_inbuf, 4);
-            scram_inbuf += 4;
         }
 
-        uint32_t payload_len = scram_outbuf_len;
-        uint32_t conversation_len = payload_len + 5;
-        uint32_t data_len = conversation_len * num_conversations;
-        uint8_t complete = 0;
-        unsigned char *data = malloc(data_len);
-        memcpy(data, &complete, 1);
-        memcpy(data+1, &payload_len, 4);
-        memcpy(data+5, scram_outbuf, payload_len);
-        memcpy(data+conversation_len, data, conversation_len);
+        fprintf(stderr, "executed scram step %d for all conversations\n", conversations[0].step);
 
-        if (vio->write_packet(vio, data, data_len)) {
-            fprintf(stderr, "ERROR: failed while writing scram step %d\n", scram.step);
+        /* allocate buffer for auth protocol payload */
+        uint32_t conversation_payload_len = buf_lens[0]; // TODO: verify all buf_lens same
+        uint32_t conversation_len = conversation_payload_len + 5;
+        uint32_t mongosql_auth_data_len = conversation_len * num_conversations;
+        unsigned char *mongosql_auth_data = malloc(mongosql_auth_data_len);
+
+        /*
+         * for each scram conversation, process scram_outbuf
+         * and populate the appropriate piece of mongosql_auth_data
+         */
+        unsigned char *conversation_data = mongosql_auth_data;
+        for(unsigned int i=0; i<num_conversations; i++) {
+            uint8_t complete = 0; // TODO: actually compute this
+            memcpy(conversation_data, &complete, 1);
+            memcpy(conversation_data+1, &buf_lens[i], 4);
+            memcpy(conversation_data+5, bufs[i], buf_lens[i]);
+
+            conversation_data += conversation_len;
+        }
+
+        fprintf(stderr, "build mongosql_auth_data buffer\n");
+
+        /* write mongosql_auth_data to the wire */
+        if (vio->write_packet(vio, mongosql_auth_data, mongosql_auth_data_len)) {
+            fprintf(stderr, "ERROR: failed while writing scram step %d\n", conversations[0].step);
             return CR_ERROR;
         }
 
-        fprintf(stderr, "sent scram step %d\n", scram.step);
-        unsigned char *conversation = data;
+        fprintf(stderr, "sent scram step %d\n", conversations[0].step);
         for(unsigned int i=0; i<num_conversations; i++) {
             fprintf(stderr, "    conversation: %d\n", i);
-            fprintf(stderr, "        length: %d\n", conversation_len);
-            fprintf(stderr, "        complete: %d\n", complete);
-            fprintf(stderr, "        payload_len: %d\n", payload_len);
-            fprintf(stderr, "        payload: '%s'\n", conversation+5);
-            conversation += conversation_len;
+            fprintf(stderr, "        complete: %d\n", 0); // TODO: print actual variable
+            fprintf(stderr, "        payload_len: %d\n", buf_lens[i]);
+            fprintf(stderr, "        payload: '%s'\n", bufs[i]);
         }
 
         /* read server reply */
@@ -155,21 +181,32 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
         int pkt_len;
         pkt_len = vio->read_packet(vio, &pkt);
         if (pkt_len < 0) {
-            fprintf(stderr, "ERROR: failed while reading server reply to scram step %d\n", scram.step);
+            fprintf(stderr, "ERROR: failed while reading server reply to scram step %d\n", conversations[0].step);
             return CR_ERROR;
         }
-        fprintf(stderr, "received scram step %d response\n", scram.step);
+        fprintf(stderr, "received scram step %d response\n", conversations[0].step);
         fprintf(stderr, "    length: %d\n", pkt_len);
-        fprintf(stderr, "    content: '%s'\n", pkt);
 
-        scram_inbuf = pkt + 4;
-        memcpy(&scram_inbuf_len, pkt, 4);
+        /* read the server reply and populate scram_inbuf s */
+        for(unsigned int i=0; i<num_conversations; i++) {
+            fprintf(stderr, "    conversation: %d\n", i);
+            uint32_t payload_len;
+            memcpy(&payload_len, pkt, 4);
+            pkt += 4;
+            fprintf(stderr, "        payload_len: %d\n", payload_len);
+
+            memcpy(bufs[i], pkt, payload_len);
+            pkt += payload_len;
+            fprintf(stderr, "        payload: '%s'\n", bufs[i]);
+        }
     }
 
     fprintf(stderr, "%s", "SCRAM: authenticated");
 
 failure:
-    _mongoc_scram_destroy (&scram);
+    for(unsigned int i=0; i<num_conversations; i++) {
+        _mongoc_scram_destroy (&conversations[i]);
+    }
 
     return CR_OK;
 }
