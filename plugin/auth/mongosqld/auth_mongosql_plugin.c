@@ -39,7 +39,7 @@
     @retval CR_ERROR An error occurred.
     @retval CR_OK Authentication succeeded.
 */
-static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
+static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
 {
 
   // TODO: read plugin name?
@@ -87,8 +87,12 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
    mongoc_scram_t scram;
    _mongoc_scram_init (&scram);
-   _mongoc_scram_set_pass (&scram, info->auth_string);
-   _mongoc_scram_set_user (&scram, info->user_name);
+   _mongoc_scram_set_pass (&scram, mysql->passwd);
+   _mongoc_scram_set_user (&scram, mysql->user);
+
+   fprintf(stderr, "initialized scram\n");
+   fprintf(stderr, "    user: %s\n", mysql->user);
+   fprintf(stderr, "    pass: %s\n", mysql->passwd);
 
    uint32_t buf_len = 0;
    unsigned char buf[4096] = {0};
