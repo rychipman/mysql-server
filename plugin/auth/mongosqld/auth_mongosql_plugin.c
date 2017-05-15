@@ -118,11 +118,17 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
           fprintf(stderr, "ERROR: failed while writing scram step %d\n", scram.step);
           return CR_ERROR;
       }
+
       fprintf(stderr, "sent scram step %d\n", scram.step);
-      fprintf(stderr, "    length: %d\n", data_len);
-      fprintf(stderr, "    complete: %d\n", complete);
-      fprintf(stderr, "    payload_len: %d\n", payload_len);
-      fprintf(stderr, "    payload: '%s'\n", data+5);
+      unsigned char *conversation = data;
+      for(int i=0;i<num_conversations;i++) {
+          fprintf(stderr, "    conversation: %d\n", i);
+          fprintf(stderr, "        length: %d\n", conversation_len);
+          fprintf(stderr, "        complete: %d\n", complete);
+          fprintf(stderr, "        payload_len: %d\n", payload_len);
+          fprintf(stderr, "        payload: '%s'\n", conversation+5);
+          conversation += conversation_len;
+      }
 
       /* read server reply */
       unsigned char *pkt;
