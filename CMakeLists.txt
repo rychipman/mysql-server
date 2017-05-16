@@ -13,7 +13,17 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-set (SSL_LIBS "-framework CoreFoundation -framework Security")
+# set ssl_libs based on platform
+IF(APPLE)
+  #set (MONGOC_ENABLE_CRYPTO_COMMON_CRYPTO 1)
+  set (SSL_LIBS "-framework CoreFoundation -framework Security")
+ELSEIF()
+  include(FindOpenSSL)
+  if(OPENSSL_FOUND)
+    MESSAGE(STATUS ">>>>>> FOUND!!!")
+  endif()
+  set(SSL_LIBS ${OPENSSL_LIBRARIES})
+ENDIF()
 
 IF(WIN32)
   # CMake 2.8.12 is needed for Visual Studio 2013

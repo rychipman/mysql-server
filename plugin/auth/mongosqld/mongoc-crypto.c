@@ -15,8 +15,6 @@
 
 // #include "mongoc-config.h"
 
-#include "mongoc-crypto-common-crypto.c"
-
 #include "mongoc-crypto-private.h"
 #if defined(MONGOC_ENABLE_CRYPTO_LIBCRYPTO)
 #include "mongoc-crypto-openssl-private.h"
@@ -30,8 +28,6 @@ void
 mongoc_crypto_init (mongoc_crypto_t *crypto)
 {
 
-   crypto->hmac_sha1 = mongoc_crypto_common_crypto_hmac_sha1;
-   crypto->sha1 = mongoc_crypto_common_crypto_sha1;
 #ifdef MONGOC_ENABLE_CRYPTO_LIBCRYPTO
    crypto->hmac_sha1 = mongoc_crypto_openssl_hmac_sha1;
    crypto->sha1 = mongoc_crypto_openssl_sha1;
