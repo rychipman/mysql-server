@@ -14,7 +14,6 @@
  */
 
 // #include "mongoc-config.h"
-#include "mongoc-crypto-private.h"
 
 #include "mongoc-crypto-common-crypto-private.h"
 #include <CommonCrypto/CommonHMAC.h>
@@ -33,14 +32,14 @@ mongoc_crypto_common_crypto_hmac_sha1 (mongoc_crypto_t *crypto,
    CCHmac (kCCHmacAlgSHA1, key, key_len, d, n, md);
 }
 
-bool
+my_bool
 mongoc_crypto_common_crypto_sha1 (mongoc_crypto_t *crypto,
                                   const unsigned char *input,
                                   const size_t input_len,
                                   unsigned char *output /* OUT */)
 {
    if (CC_SHA1 (input, input_len, output)) {
-      return true;
+      return TRUE;
    }
-   return false;
+   return FALSE;
 }

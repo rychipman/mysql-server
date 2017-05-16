@@ -29,7 +29,7 @@ mongoc_crypto_common_crypto_hmac_sha1 (mongoc_crypto_t *crypto,
                                        int n,
                                        unsigned char *md /* OUT */);
 
-bool
+my_bool
 mongoc_crypto_common_crypto_sha1 (mongoc_crypto_t *crypto,
                                   const unsigned char *input,
                                   const size_t input_len,
