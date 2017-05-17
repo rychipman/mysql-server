@@ -237,8 +237,59 @@ finished:
 }
 
 int auth_plain(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql, uint32_t num_conversations) {
-    fprintf(stderr, "ERROR: auth_plain not yet implemented\n");
-    return CR_ERROR;
+
+    /* remove parameters from username */
+    char *ptr = strchr(mysql->user, '?');
+    if(ptr != NULL) {
+        *ptr = '\0';
+    }
+
+    /* base64-encode username and password */
+    char buf[4096];
+    int buflen = 0;
+    size_t len;
+    unsigned char *str;
+    str = bson_strdup_printf ("%c%s%c%s", '\0', mysql->user, '\0', mysql->passwd);
+    len = strlen (mysql->user) + strlen (mysql->passwd) + 2;
+    buflen = mongoc_b64_ntop ((const uint8_t *) str, len, buf, sizeof buf);
+    free (str);
+
+    fprintf(stderr, "base64-encoded username and password\n");
+    fprintf(stderr, "    username: %s\n", mysql->user);
+    fprintf(stderr, "    password: %s\n", mysql->passwd);
+    fprintf(stderr, "    base64: %s\n", buf);
+
+    if (buflen == -1) {
+        fprintf(stderr, "ERROR: failed base64 encoding message\n");
+        return CR_ERROR;
+    }
+
+    /* allocate buffer for auth protocol payload */
+    uint32_t conversation_payload_len = buflen;
+    uint32_t conversation_len = conversation_payload_len + 5;
+    uint32_t mongosql_auth_data_len = conversation_len * num_conversations;
+    unsigned char *mongosql_auth_data = malloc(mongosql_auth_data_len);
+
+    /* populate buffer with PLAIN payload for each conversation */
+    unsigned char *conversation_data = mongosql_auth_data;
+    for(unsigned int i=0; i<num_conversations; i++) {
+        uint8_t done = 1;
+        memcpy(conversation_data, &done, 1);
+        memcpy(conversation_data+1, &buflen, 4);
+        memcpy(conversation_data+5, buf, buflen);
+
+        conversation_data += conversation_len;
+    }
+
+    fprintf(stderr, "built mongosql_auth_data buffer\n");
+
+    /* write mongosql_auth_data to the wire */
+    if (vio->write_packet(vio, mongosql_auth_data, mongosql_auth_data_len)) {
+        fprintf(stderr, "ERROR: failed while writing PLAIN payload\n");
+        return CR_ERROR;
+    }
+
+    return CR_OK;
 }
 
 mysql_declare_client_plugin(AUTHENTICATION)
