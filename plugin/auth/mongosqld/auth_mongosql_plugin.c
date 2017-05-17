@@ -94,6 +94,12 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
 
 int auth_scram(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql, uint32_t num_conversations) {
 
+    /* remove parameters from username */
+    char *ptr = strchr(mysql->user, '?');
+    if(ptr != NULL) {
+        *ptr = '\0';
+    }
+
     /* initialize scram conversations */
     mongoc_scram_t conversations[num_conversations];
     for (unsigned int i=0; i<num_conversations; i++) {
