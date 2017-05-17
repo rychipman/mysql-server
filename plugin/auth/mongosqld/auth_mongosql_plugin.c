@@ -82,6 +82,18 @@ static int mongosql_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
     fprintf(stderr, "    mechanism: '%s'\n", mechanism);
     fprintf(stderr, "    num_conversations: %d\n", num_conversations);
 
+    if(strcmp(mechanism, "SCRAM-SHA-1") == 0) {
+        return auth_scram(vio, mysql, num_conversations);
+    } else if (strcmp(mechanism, "PLAIN") == 0) {
+        return auth_plain(vio, mysql, num_conversations);
+    } else {
+        fprintf(stderr, "ERROR: plugin does not support mechanism '%s'\n", mechanism);
+        return CR_ERROR;
+    }
+}
+
+int auth_scram(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql, uint32_t num_conversations) {
+
     /* initialize scram conversations */
     mongoc_scram_t conversations[num_conversations];
     for (unsigned int i=0; i<num_conversations; i++) {
@@ -218,6 +230,10 @@ finished:
     return CR_OK;
 }
 
+int auth_plain(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql, uint32_t num_conversations) {
+    fprintf(stderr, "ERROR: auth_plain not yet implemented\n");
+    return CR_ERROR;
+}
 
 mysql_declare_client_plugin(AUTHENTICATION)
     "mongosql_auth",
